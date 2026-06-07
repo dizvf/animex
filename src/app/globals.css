@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@vidstack/react/player/styles/default/theme.css";
+@import "@vidstack/react/player/styles/default/layouts/video.css";
+
+:root {
+  --brand: #E85D04;
+  --brand-dim: rgba(232, 93, 4, 0.15);
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-surface text-white antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-surface-border rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-brand-600; }
+
+/* ── Shimmer skeleton ── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    theme("colors.surface.overlay") 0%,
+    theme("colors.surface.border")  50%,
+    theme("colors.surface.overlay") 100%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* ── Vidstack theme overrides ── */
+media-player {
+  --media-brand: var(--brand);
+  --media-controls-color: #fff;
+  --media-slider-track-bg: rgba(255,255,255,0.2);
+  --media-slider-track-fill-bg: var(--brand);
+  --media-slider-thumb-bg: var(--brand);
+  --media-tooltip-bg: #17171A;
+  --media-tooltip-color: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ── AniSkip buttons inside Vidstack ── */
+.skip-btn {
+  @apply absolute bottom-20 right-4 z-50;
+  @apply px-4 py-2 rounded-full text-sm font-semibold;
+  @apply bg-brand text-white;
+  @apply transition-all duration-200 hover:bg-brand-400 active:scale-95;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Card hover lift ── */
+.anime-card {
+  @apply transition-all duration-300;
+}
+.anime-card:hover {
+  @apply -translate-y-1;
+}
+.anime-card:hover .anime-card__overlay {
+  opacity: 1;
+}
+
+/* ── Gradient text ── */
+.gradient-text {
+  background: linear-gradient(135deg, #FF7515 0%, #FF4500 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Focus ring ── */
+*:focus-visible {
+  @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-surface;
+}
+
+@layer utilities {
+  .text-shadow-sm {
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .aspect-poster {
+    aspect-ratio: 3 / 4;
+  }
+  .aspect-banner {
+    aspect-ratio: 16 / 9;
+  }
+}
