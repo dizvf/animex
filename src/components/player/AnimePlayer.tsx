@@ -31,13 +31,8 @@ const PROVIDERS = [
       `https://player.vidplus.to/embed/anime/${animeId}/${ep}`,
   },
   {
-    name: "GoGo",
-    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
-      malId ? `https://gogoanime.by/embed/${malId}-episode-${ep}` : null,
-  },
-  {
     name: "Ayame",
-    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+    url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
       `https://2embed.cc/embed/anime/${animeId}/${ep}`,
   },
 ];
@@ -58,7 +53,6 @@ export default function AnimePlayer({
     setLoading(true);
   }, [providerIdx, episode, lang]);
 
-  // Mark episode as in-progress after 30s
   useEffect(() => {
     const timer = setTimeout(() => {
       setProgress({ animeId, episode, progress: 30, duration: 1440 });
@@ -71,9 +65,8 @@ export default function AnimePlayer({
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Controls row */}
+      {/* Controls */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        {/* Server buttons */}
         <span className="text-xs text-white/40 shrink-0">Server:</span>
         {PROVIDERS.map((prov, i) => (
           <button
@@ -108,7 +101,6 @@ export default function AnimePlayer({
           ))}
         </div>
 
-        {/* Next episode */}
         {onNext && (
           <button
             onClick={onNext}
@@ -119,7 +111,7 @@ export default function AnimePlayer({
         )}
       </div>
 
-      {/* Player iframe */}
+      {/* Player */}
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 pointer-events-none">
@@ -144,7 +136,7 @@ export default function AnimePlayer({
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <p className="text-white/30 text-sm">No source ID for this server</p>
+              <p className="text-white/30 text-sm">No source for this server</p>
               <p className="text-white/20 text-xs mt-1">Try a different server above</p>
             </div>
           </div>
@@ -152,7 +144,7 @@ export default function AnimePlayer({
       </div>
 
       <p className="text-xs text-white/20 mt-2 text-center">
-        If a server doesn't load, try another one above. Switch between Sub / Dub with the toggle.
+        If a server doesn't load, try another one. Toggle Sub / Dub above.
       </p>
     </div>
   );
