@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useWatchlistStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -12,42 +12,33 @@ interface AnimePlayerProps {
   className?: string;
 }
 
-// All providers — tried in order, user can switch manually
+type Lang = "sub" | "dub";
+
 const PROVIDERS = [
   {
-    name: "Hianime",
-    url: (malId: number, ep: number) =>
-      `https://player.zoro.to/anime/${malId}/${ep}`,
-    useMal: false,
-    useAnilist: true,
+    name: "Ryu",
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://animeplay.cfd/stream/ani/${animeId}/${ep}/${lang}`,
   },
   {
-    name: "VidSrc",
-    url: (malId: number, ep: number) =>
-      `https://vidsrc.me/embed/anime?malId=${malId}&episode=${ep}`,
-    useMal: true,
-    useAnilist: false,
+    name: "Volt",
+    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
+      malId ? `https://animeplay.cfd/stream/mal/${malId}/${ep}/${lang}` : null,
   },
   {
-    name: "2Anime",
-    url: (malId: number, ep: number) =>
-      `https://2anime.xyz/embed/${malId}/${ep}`,
-    useMal: true,
-    useAnilist: false,
+    name: "Warp",
+    url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
+      `https://player.vidplus.to/embed/anime/${animeId}/${ep}`,
   },
   {
-    name: "AnimeOwl",
-    url: (id: number, ep: number) =>
-      `https://animeowl.live/anime-player.php?mal_id=${id}&episode=${ep}`,
-    useMal: true,
-    useAnilist: false,
+    name: "GoGo",
+    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
+      malId ? `https://gogoanime.by/embed/${malId}-episode-${ep}` : null,
   },
   {
-    name: "GogoAnime",
-    url: (id: number, ep: number) =>
-      `https://gogoanime3.cc/embed/${id}-episode-${ep}`,
-    useMal: false,
-    useAnilist: true,
+    name: "Ayame",
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://2embed.cc/embed/anime/${animeId}/${ep}`,
   },
 ];
 
@@ -59,14 +50,15 @@ export default function AnimePlayer({
   className,
 }: AnimePlayerProps) {
   const [providerIdx, setProviderIdx] = useState(0);
+  const [lang, setLang] = useState<Lang>("sub");
   const [loading, setLoading] = useState(true);
   const setProgress = useWatchlistStore((s) => s.setProgress);
 
   useEffect(() => {
     setLoading(true);
-  }, [providerIdx, episode]);
+  }, [providerIdx, episode, lang]);
 
-  // Mark episode as started after 30s
+  // Mark episode as in-progress after 30s
   useEffect(() => {
     const timer = setTimeout(() => {
       setProgress({ animeId, episode, progress: 30, duration: 1440 });
@@ -75,13 +67,13 @@ export default function AnimePlayer({
   }, [animeId, episode, setProgress]);
 
   const p = PROVIDERS[providerIdx];
-  const id = p.useMal ? malId : animeId;
-  const src = id != null ? p.url(id, episode) : null;
+  const src = p.url(animeId, malId, episode, lang);
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Server switcher */}
+      {/* Controls row */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {/* Server buttons */}
         <span className="text-xs text-white/40 shrink-0">Server:</span>
         {PROVIDERS.map((prov, i) => (
           <button
@@ -97,6 +89,26 @@ export default function AnimePlayer({
             {prov.name}
           </button>
         ))}
+
+        {/* Sub/Dub toggle */}
+        <div className="flex rounded-lg overflow-hidden border border-surface-border ml-1">
+          {(["sub", "dub"] as Lang[]).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLang(l)}
+              className={cn(
+                "px-3 py-1 text-xs font-medium transition-all uppercase",
+                lang === l
+                  ? "bg-brand text-white"
+                  : "bg-surface-card text-white/50 hover:text-white"
+              )}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Next episode */}
         {onNext && (
           <button
             onClick={onNext}
@@ -107,7 +119,7 @@ export default function AnimePlayer({
         )}
       </div>
 
-      {/* Iframe player */}
+      {/* Player iframe */}
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 pointer-events-none">
@@ -120,24 +132,27 @@ export default function AnimePlayer({
 
         {src ? (
           <iframe
-            key={`${providerIdx}-${episode}`}
+            key={`${providerIdx}-${episode}-${lang}`}
             src={src}
             className="w-full h-full"
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
             referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
             onLoad={() => setLoading(false)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-white/30 text-sm">No source ID available — try a different server</p>
+            <div className="text-center">
+              <p className="text-white/30 text-sm">No source ID for this server</p>
+              <p className="text-white/20 text-xs mt-1">Try a different server above</p>
+            </div>
           </div>
         )}
       </div>
 
       <p className="text-xs text-white/20 mt-2 text-center">
-        If one server doesn't load, click another server button above.
+        If a server doesn't load, try another one above. Switch between Sub / Dub with the toggle.
       </p>
     </div>
   );
