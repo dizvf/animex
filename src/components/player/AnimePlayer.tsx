@@ -1,169 +1,138 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
-import {
-  MediaPlayer,
-  MediaProvider,
-  type MediaPlayerInstance,
-  useMediaState,
-  Track,
-} from "@vidstack/react";
-import {
-  DefaultVideoLayout,
-  defaultLayoutIcons,
-} from "@vidstack/react/player/layouts/default";
-import { SkipForward } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useRef } from "react";
 import { useWatchlistStore } from "@/lib/store";
-import type { AnifyEpisodeData, AniSkipResult } from "@/types";
-import { getSkipInterval } from "@/lib/aniskip";
+import { cn } from "@/lib/utils";
 
 interface AnimePlayerProps {
   animeId: number;
+  malId: number | null;
   episode: number;
-  episodeData: AnifyEpisodeData;
-  skipTimes: AniSkipResult;
   onNext?: () => void;
   className?: string;
 }
 
+const PROVIDERS = [
+  {
+    name: "Server 1",
+    url: (malId: number, ep: number) =>
+      `https://vidsrc.to/embed/anime/${malId}/${ep}`,
+    useMal: true,
+  },
+  {
+    name: "Server 2",
+    url: (id: number, ep: number) =>
+      `https://vidsrc.cc/v2/embed/anime/${id}/${ep}`,
+    useMal: false,
+  },
+  {
+    name: "Server 3",
+    url: (malId: number, ep: number) =>
+      `https://player.autoembed.cc/embed/anime/${malId}/${ep}`,
+    useMal: true,
+  },
+];
+
 export default function AnimePlayer({
   animeId,
+  malId,
   episode,
-  episodeData,
-  skipTimes,
   onNext,
   className,
 }: AnimePlayerProps) {
-  const playerRef = useRef<MediaPlayerInstance>(null);
+  const [provider, setProvider] = useState(0);
+  const [loading, setLoading] = useState(true);
   const setProgress = useWatchlistStore((s) => s.setProgress);
-  const savedProgress = useWatchlistStore((s) => s.getProgress(animeId, episode));
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const [showSkipOp, setShowSkipOp] = useState(false);
-  const [showSkipEd, setShowSkipEd] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-
-  const opInterval = getSkipInterval(skipTimes, "op");
-  const edInterval = getSkipInterval(skipTimes, "ed");
-
-  // Pick best source (prefer HLS)
-  const sources = episodeData.sources ?? [];
-  const hls = sources.find((s) => s.isM3U8) ?? sources[0];
-  const src = hls?.url;
-
-  // Subtitles
-  const subtitles = episodeData.subtitles ?? [];
-  const engSub = subtitles.find((s) => s.lang.toLowerCase().includes("english") || s.lang === "en");
-
-  // Restore saved position
+  // Save basic progress when provider is selected
   useEffect(() => {
-    if (savedProgress && playerRef.current && savedProgress.progress > 30) {
-      const p = playerRef.current;
-      const handler = () => {
-        if (savedProgress.progress > 0) {
-          p.currentTime = savedProgress.progress;
-        }
-      };
-      p.addEventListener("can-play", handler, { once: true });
-      return () => p.removeEventListener("can-play", handler);
-    }
-  }, [savedProgress]);
+    setLoading(true);
+  }, [provider, episode]);
 
-  // Track skip button visibility
+  // Mark episode as started after 30s
   useEffect(() => {
-    const id = setInterval(() => {
-      const t = playerRef.current?.currentTime ?? 0;
-      setCurrentTime(t);
-      setShowSkipOp(!!opInterval && t >= opInterval.startTime && t < opInterval.endTime);
-      setShowSkipEd(!!edInterval && t >= edInterval.startTime && t < edInterval.endTime);
-    }, 500);
-    return () => clearInterval(id);
-  }, [opInterval, edInterval]);
-
-  // Save progress every 5 seconds
-  useEffect(() => {
-    const save = () => {
-      const p = playerRef.current;
-      if (!p || !p.duration || p.currentTime < 5) return;
+    const timer = setTimeout(() => {
       setProgress({
         animeId,
         episode,
-        progress: p.currentTime,
-        duration: p.duration,
+        progress: 30,
+        duration: 1440, // assume 24min
       });
-    };
-    const id = setInterval(save, 5000);
-    return () => { clearInterval(id); save(); };
+    }, 30_000);
+    return () => clearTimeout(timer);
   }, [animeId, episode, setProgress]);
 
-  const skipTo = useCallback((time: number) => {
-    if (playerRef.current) playerRef.current.currentTime = time;
-  }, []);
+  const current = PROVIDERS[provider];
+  const id = current.useMal ? malId : animeId;
 
-  if (!src) {
-    return (
-      <div className={cn("aspect-video bg-surface-overlay rounded-xl flex items-center justify-center", className)}>
-        <p className="text-white/40 text-sm">No stream source available</p>
-      </div>
-    );
-  }
+  const src = id ? current.url(id, episode) : null;
 
   return (
-    <div className={cn("relative", className)}>
-      <MediaPlayer
-        ref={playerRef}
-        src={src}
-        title={`Episode ${episode}`}
-        className="w-full aspect-video"
-        playsInline
-        crossOrigin="anonymous"
-        onEnd={onNext}
-      >
-        <MediaProvider />
-
-        {/* Subtitles */}
-        {engSub && (
-          <Track
-            src={engSub.url}
-            kind="subtitles"
-            label="English"
-            lang="en"
-            default
-          />
+    <div className={cn("w-full", className)}>
+      {/* Provider selector */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-xs text-white/40 mr-1">Source:</span>
+        {PROVIDERS.map((p, i) => (
+          <button
+            key={p.name}
+            onClick={() => setProvider(i)}
+            className={cn(
+              "px-3 py-1 rounded-lg text-xs font-medium transition-all",
+              provider === i
+                ? "bg-brand text-white"
+                : "bg-surface-card border border-surface-border text-white/50 hover:text-white"
+            )}
+          >
+            {p.name}
+          </button>
+        ))}
+        {onNext && (
+          <button
+            onClick={onNext}
+            className="ml-auto px-3 py-1 rounded-lg text-xs font-medium bg-surface-card border border-surface-border text-white/50 hover:text-white transition-all"
+          >
+            Next EP →
+          </button>
         )}
-        {subtitles
-          .filter((s) => s !== engSub)
-          .map((sub) => (
-            <Track key={sub.url} src={sub.url} kind="subtitles" label={sub.lang} lang={sub.lang} />
-          ))}
+      </div>
 
-        <DefaultVideoLayout
-          icons={defaultLayoutIcons}
-          thumbnails={undefined}
-        />
-      </MediaPlayer>
+      {/* Player */}
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-overlay z-10">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              <p className="text-white/40 text-sm">Loading player…</p>
+            </div>
+          </div>
+        )}
 
-      {/* AniSkip — Skip Intro */}
-      {showSkipOp && opInterval && (
-        <button
-          className="skip-btn"
-          onClick={() => skipTo(opInterval.endTime)}
-        >
-          <SkipForward size={14} className="inline mr-1.5" />
-          Skip Intro
-        </button>
-      )}
+        {src ? (
+          <iframe
+            ref={iframeRef}
+            src={src}
+            className="w-full h-full"
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoading(false)}
+            onError={() => setLoading(false)}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-white/40 mb-2">No MAL ID available for this anime</p>
+              <p className="text-white/20 text-sm">Try browsing directly on a streaming site</p>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* AniSkip — Skip Outro */}
-      {showSkipEd && edInterval && (
-        <button
-          className="skip-btn"
-          onClick={onNext ?? (() => skipTo(edInterval.endTime))}
-        >
-          <SkipForward size={14} className="inline mr-1.5" />
-          {onNext ? "Next Episode" : "Skip Outro"}
-        </button>
-      )}
+      {/* Source note */}
+      <p className="text-xs text-white/20 mt-2 text-center">
+        If the player doesn't load, try a different server above.
+      </p>
     </div>
   );
 }

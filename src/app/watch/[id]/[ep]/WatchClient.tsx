@@ -4,24 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, List } from "lucide-react";
 import AnimePlayer from "@/components/player/AnimePlayer";
-import type { AnifyEpisodeData, AniSkipResult } from "@/types";
 
 interface WatchClientProps {
   animeId: number;
+  malId: number | null;
   episode: number;
   title: string;
-  episodeData: AnifyEpisodeData;
-  skipTimes: AniSkipResult;
   prevEp: number | null;
   nextEp: number | null;
 }
 
 export default function WatchClient({
   animeId,
+  malId,
   episode,
   title,
-  episodeData,
-  skipTimes,
   prevEp,
   nextEp,
 }: WatchClientProps) {
@@ -45,9 +42,8 @@ export default function WatchClient({
       {/* Player */}
       <AnimePlayer
         animeId={animeId}
+        malId={malId}
         episode={episode}
-        episodeData={episodeData}
-        skipTimes={skipTimes}
         onNext={handleNext}
       />
 
