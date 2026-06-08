@@ -1,6 +1,4 @@
 import { getEpisodes } from "@/lib/jikan";
-import { getAniListEpisodes } from "@/lib/anilist";
-import { getAnimeTitle } from "@/lib/utils";
 import EpisodeList, { type EpisodeData } from "@/components/anime/EpisodeList";
 import type { AniListAnime } from "@/types";
 
@@ -26,18 +24,7 @@ async function fetchAllJikanEpisodes(malId: number) {
 export default async function EpisodeSection({ anime }: EpisodeSectionProps) {
   const totalEpisodes = anime.episodes ?? null;
 
-  const [jikanEps, aniListEpData] = await Promise.all([
-    anime.idMal ? fetchAllJikanEpisodes(anime.idMal) : Promise.resolve([]),
-    getAniListEpisodes(anime.id).catch(() => null),
-  ]);
-
-  const aniListThumbs: Record<number, string> = {};
-  if (aniListEpData?.Media?.streamingEpisodes) {
-    aniListEpData.Media.streamingEpisodes.forEach((se, i) => {
-      if (se.thumbnail) aniListThumbs[i + 1] = se.thumbnail;
-    });
-  }
-
+  const jikanEps = anime.idMal ? await fetchAllJikanEpisodes(anime.idMal) : [];
   const jikanMap = new Map(jikanEps.map((e) => [e.mal_id, e]));
   const count = totalEpisodes ?? jikanEps.length;
 
@@ -47,7 +34,6 @@ export default async function EpisodeSection({ anime }: EpisodeSectionProps) {
     return {
       number: num,
       title: jikan?.title ?? null,
-      thumbnail: aniListThumbs[num] ?? null,
       filler: jikan?.filler ?? false,
       recap: jikan?.recap ?? false,
       aired: jikan?.aired ?? null,
@@ -61,7 +47,6 @@ export default async function EpisodeSection({ anime }: EpisodeSectionProps) {
       episodes={episodes}
       currentEpisode={0}
       totalEpisodes={totalEpisodes}
-      layout="list"
     />
   );
 }

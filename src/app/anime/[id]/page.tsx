@@ -4,10 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Play, Star, Tv2, Calendar, Clock, BookOpen, Heart } from "lucide-react";
 import { getAnimeById } from "@/lib/anilist";
-import { getEpisodes } from "@/lib/jikan";
 import AnimeGrid from "@/components/anime/AnimeGrid";
+import SeasonsList from "@/components/anime/SeasonsList";
 import { cn, formatScore, formatStatus, formatFormat, stripHtml, getAnimeTitle } from "@/lib/utils";
-import type { AniListAnime, JikanEpisode } from "@/types";
+import type { AniListAnime } from "@/types";
 import WatchlistButton from "./WatchlistButton";
 import EpisodeSection from "./EpisodeSection";
 
@@ -44,15 +44,6 @@ export default async function AnimePage({ params }: { params: { id: string } }) 
   const score = formatScore(anime.averageScore);
   const desc = anime.description ? stripHtml(anime.description) : null;
   const studio = anime.studios.nodes.find((s) => s.isAnimationStudio);
-
-  // Jikan episodes (non-blocking)
-  let episodes: JikanEpisode[] = [];
-  if (anime.idMal) {
-    try {
-      const ep = await getEpisodes(anime.idMal);
-      episodes = ep.data;
-    } catch {}
-  }
 
   // Recommendations
   const recs = anime.recommendations?.nodes
@@ -190,9 +181,17 @@ export default async function AnimePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {/* Episodes */}
         <div className="mt-10">
           <EpisodeSection anime={anime} />
         </div>
+
+        {/* Seasons / Related */}
+        {anime.relations?.edges?.length > 0 && (
+          <div className="mt-12">
+            <SeasonsList relations={anime.relations} currentId={anime.id} />
+          </div>
+        )}
 
         {/* Recommendations */}
         {recs && recs.length > 0 && (
