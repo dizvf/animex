@@ -190,14 +190,8 @@ export default async function AnimePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Episodes */}
         <div className="mt-10">
-          <EpisodeSection
-            animeId={anime.id}
-            malId={anime.idMal}
-            episodes={episodes}
-            totalEpisodes={anime.episodes}
-          />
+          <EpisodeSection anime={anime} />
         </div>
 
         {/* Recommendations */}
