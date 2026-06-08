@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { getAnimeById } from "@/lib/anilist";
+import { getAnimeById, getAniListEpisodes } from "@/lib/anilist";
 import { getEpisodes } from "@/lib/jikan";
-import EpisodeList from "@/components/anime/EpisodeList";
+import EpisodeList, { type EpisodeData } from "@/components/anime/EpisodeList";
 import WatchClient from "./WatchClient";
 import { getAnimeTitle } from "@/lib/utils";
-import type { AniListAnime, JikanEpisode } from "@/types";
+import type { AniListAnime } from "@/types";
 
 interface WatchPageProps {
   params: { id: string; ep: string };
@@ -22,9 +22,8 @@ export async function generateMetadata({ params }: WatchPageProps) {
   }
 }
 
-// Fetch ALL Jikan episode pages
-async function fetchAllEpisodes(malId: number): Promise<JikanEpisode[]> {
-  const all: JikanEpisode[] = [];
+async function fetchAllJikanEpisodes(malId: number) {
+  const all: Array<{ mal_id: number; title: string | null; filler: boolean; recap: boolean; aired: string | null }> = [];
   let page = 1;
   while (true) {
     try {
@@ -32,11 +31,8 @@ async function fetchAllEpisodes(malId: number): Promise<JikanEpisode[]> {
       all.push(...data);
       if (!pagination.has_next_page) break;
       page++;
-      // Jikan rate limit: ~3 req/sec
       await new Promise((r) => setTimeout(r, 350));
-    } catch {
-      break;
-    }
+    } catch { break; }
   }
   return all;
 }
@@ -44,32 +40,49 @@ async function fetchAllEpisodes(malId: number): Promise<JikanEpisode[]> {
 export default async function WatchPage({ params }: WatchPageProps) {
   const id = Number(params.id);
   const ep = Number(params.ep);
-
   if (isNaN(id) || isNaN(ep) || ep < 1) notFound();
 
   let anime: AniListAnime;
   try {
     const data = await getAnimeById(id);
     anime = data.Media as AniListAnime;
-  } catch {
-    notFound();
-  }
+  } catch { notFound(); }
 
   const title = getAnimeTitle(anime!.title);
   const totalEpisodes = anime!.episodes ?? null;
 
-  // Fetch all episode pages from Jikan
-  let jikanEps: JikanEpisode[] = [];
-  if (anime!.idMal) {
-    try {
-      jikanEps = await fetchAllEpisodes(anime!.idMal);
-    } catch {}
+  // Fetch Jikan episodes + AniList streaming thumbnails in parallel
+  const [jikanEps, aniListEpData] = await Promise.all([
+    anime!.idMal ? fetchAllJikanEpisodes(anime!.idMal) : Promise.resolve([]),
+    getAniListEpisodes(id).catch(() => null),
+  ]);
+
+  // AniList streaming episode thumbnails (indexed by position)
+  const aniListThumbs: Record<number, string> = {};
+  if (aniListEpData?.Media?.streamingEpisodes) {
+    aniListEpData.Media.streamingEpisodes.forEach((se, i) => {
+      if (se.thumbnail) aniListThumbs[i + 1] = se.thumbnail;
+    });
   }
 
+  const jikanMap = new Map(jikanEps.map((e) => [e.mal_id, e]));
+  const count = totalEpisodes ?? Math.max(jikanEps.length, ep);
+
+  const episodes: EpisodeData[] = Array.from({ length: count }, (_, i) => {
+    const num = i + 1;
+    const jikan = jikanMap.get(num);
+    return {
+      number: num,
+      title: jikan?.title ?? null,
+      thumbnail: aniListThumbs[num] ?? null,
+      filler: jikan?.filler ?? false,
+      recap: jikan?.recap ?? false,
+      aired: jikan?.aired ?? null,
+    };
+  });
+
   const prevEp = ep > 1 ? ep - 1 : null;
-  const nextEp = totalEpisodes
-    ? ep < totalEpisodes ? ep + 1 : null
-    : ep + 1;
+  const nextEp = totalEpisodes ? (ep < totalEpisodes ? ep + 1 : null) : ep + 1;
 
   return (
     <div className="pt-16 min-h-screen bg-surface">
@@ -83,13 +96,12 @@ export default async function WatchPage({ params }: WatchPageProps) {
             prevEp={prevEp}
             nextEp={nextEp}
           />
-
-          <div className="xl:w-72 2xl:w-80 shrink-0">
+          <div className="xl:w-80 shrink-0">
             <div className="bg-surface-card border border-surface-border rounded-xl p-4 xl:sticky xl:top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
               <EpisodeList
                 animeId={id}
                 malId={anime!.idMal}
-                episodes={jikanEps}
+                episodes={episodes}
                 currentEpisode={ep}
                 totalEpisodes={totalEpisodes}
               />
