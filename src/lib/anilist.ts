@@ -140,3 +140,19 @@ export async function getGenres(): Promise<string[]> {
   `);
   return data.GenreCollection;
 }
+
+// ── Episode list from AniList streamingEpisodes ────────────────
+export async function getAniListEpisodes(id: number) {
+  return query<{ Media: { episodes: number | null; streamingEpisodes: Array<{ title: string; thumbnail: string; url: string }> } }>(`
+    query ($id: Int) {
+      Media(id: $id, type: ANIME) {
+        episodes
+        streamingEpisodes {
+          title
+          thumbnail
+          url
+        }
+      }
+    }
+  `, { id });
+}
