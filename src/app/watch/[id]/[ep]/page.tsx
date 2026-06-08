@@ -22,6 +22,25 @@ export async function generateMetadata({ params }: WatchPageProps) {
   }
 }
 
+// Fetch ALL Jikan episode pages
+async function fetchAllEpisodes(malId: number): Promise<JikanEpisode[]> {
+  const all: JikanEpisode[] = [];
+  let page = 1;
+  while (true) {
+    try {
+      const { data, pagination } = await getEpisodes(malId, page);
+      all.push(...data);
+      if (!pagination.has_next_page) break;
+      page++;
+      // Jikan rate limit: ~3 req/sec
+      await new Promise((r) => setTimeout(r, 350));
+    } catch {
+      break;
+    }
+  }
+  return all;
+}
+
 export default async function WatchPage({ params }: WatchPageProps) {
   const id = Number(params.id);
   const ep = Number(params.ep);
@@ -39,12 +58,11 @@ export default async function WatchPage({ params }: WatchPageProps) {
   const title = getAnimeTitle(anime!.title);
   const totalEpisodes = anime!.episodes ?? null;
 
-  // Jikan episode list for sidebar
+  // Fetch all episode pages from Jikan
   let jikanEps: JikanEpisode[] = [];
   if (anime!.idMal) {
     try {
-      const { data } = await getEpisodes(anime!.idMal, Math.ceil(ep / 100));
-      jikanEps = data;
+      jikanEps = await fetchAllEpisodes(anime!.idMal);
     } catch {}
   }
 
