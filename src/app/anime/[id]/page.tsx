@@ -6,6 +6,7 @@ import { Play, Star, Tv2, Calendar, Clock, BookOpen, Heart } from "lucide-react"
 import { getAnimeById } from "@/lib/anilist";
 import AnimeGrid from "@/components/anime/AnimeGrid";
 import SeasonsList from "@/components/anime/SeasonsList";
+import Comments from "@/components/anime/Comments";
 import { cn, formatScore, formatStatus, formatFormat, stripHtml, getAnimeTitle } from "@/lib/utils";
 import type { AniListAnime } from "@/types";
 import WatchlistButton from "./WatchlistButton";
@@ -199,6 +200,11 @@ export default async function AnimePage({ params }: { params: { id: string } }) 
             <AnimeGrid anime={recs} title="You Might Also Like" cols={5} />
           </div>
         )}
+
+        {/* Comments */}
+        <div className="mt-12">
+          <Comments />
+        </div>
       </div>
     </div>
   );

@@ -35,23 +35,6 @@ const PROVIDERS = [
     url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
       `https://2embed.cc/embed/anime/${animeId}/${ep}`,
   },
-  {
-    name: "MultiEmbed",
-    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
-      malId
-        ? `https://multiembed.mov/directstream.php?video_id=${malId}&mal=1&e=${ep}&lang=${lang}`
-        : null,
-  },
-  {
-    name: "Smash",
-    url: (_animeId: number, malId: number | null, ep: number, _lang: Lang) =>
-      malId ? `https://embed.smashystream.com/playere.php?mal=${malId}&e=${ep}` : null,
-  },
-  {
-    name: "Sito",
-    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
-      `https://embedsito.com/v3/anime/${animeId}/${ep}/${lang}`,
-  },
 ];
 
 export default function AnimePlayer({
@@ -82,7 +65,6 @@ export default function AnimePlayer({
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Server row */}
       <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <span className="text-xs text-white/40 shrink-0 mr-1">Server:</span>
         {PROVIDERS.map((prov, i) => (
@@ -99,8 +81,6 @@ export default function AnimePlayer({
             {prov.name}
           </button>
         ))}
-
-        {/* Sub/Dub */}
         <div className="flex rounded-lg overflow-hidden border border-surface-border ml-1">
           {(["sub", "dub"] as Lang[]).map((l) => (
             <button
@@ -108,16 +88,13 @@ export default function AnimePlayer({
               onClick={() => setLang(l)}
               className={cn(
                 "px-2.5 py-1 text-xs font-medium transition-all uppercase",
-                lang === l
-                  ? "bg-brand text-white"
-                  : "bg-surface-card text-white/50 hover:text-white"
+                lang === l ? "bg-brand text-white" : "bg-surface-card text-white/50 hover:text-white"
               )}
             >
               {l}
             </button>
           ))}
         </div>
-
         {onNext && (
           <button
             onClick={onNext}
@@ -128,7 +105,6 @@ export default function AnimePlayer({
         )}
       </div>
 
-      {/* Player */}
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 pointer-events-none">
@@ -138,7 +114,6 @@ export default function AnimePlayer({
             </div>
           </div>
         )}
-
         {src ? (
           <iframe
             key={`${providerIdx}-${episode}-${lang}`}
@@ -159,7 +134,6 @@ export default function AnimePlayer({
           </div>
         )}
       </div>
-
       <p className="text-xs text-white/20 mt-2 text-center">
         If a server doesn't load, try another one. Toggle Sub / Dub above.
       </p>

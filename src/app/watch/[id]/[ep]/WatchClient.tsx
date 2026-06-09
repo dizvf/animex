@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, List } from "lucide-react";
 import AnimePlayer from "@/components/player/AnimePlayer";
+import Comments from "@/components/anime/Comments";
 
 interface WatchClientProps {
   animeId: number;
@@ -84,6 +85,11 @@ export default function WatchClient({
           <h1 className="text-lg font-bold text-white">{title}</h1>
         </Link>
         <p className="text-white/50 text-sm mt-0.5">Episode {episode}</p>
+      </div>
+
+      {/* Comments */}
+      <div className="mt-8">
+        <Comments />
       </div>
     </div>
   );
