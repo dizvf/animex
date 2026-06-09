@@ -35,6 +35,23 @@ const PROVIDERS = [
     url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
       `https://2embed.cc/embed/anime/${animeId}/${ep}`,
   },
+  {
+    name: "MultiEmbed",
+    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
+      malId
+        ? `https://multiembed.mov/directstream.php?video_id=${malId}&mal=1&e=${ep}&lang=${lang}`
+        : null,
+  },
+  {
+    name: "Smash",
+    url: (_animeId: number, malId: number | null, ep: number, _lang: Lang) =>
+      malId ? `https://embed.smashystream.com/playere.php?mal=${malId}&e=${ep}` : null,
+  },
+  {
+    name: "Sito",
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://embedsito.com/v3/anime/${animeId}/${ep}/${lang}`,
+  },
 ];
 
 export default function AnimePlayer({
@@ -65,15 +82,15 @@ export default function AnimePlayer({
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Controls */}
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-xs text-white/40 shrink-0">Server:</span>
+      {/* Server row */}
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+        <span className="text-xs text-white/40 shrink-0 mr-1">Server:</span>
         {PROVIDERS.map((prov, i) => (
           <button
             key={prov.name}
             onClick={() => setProviderIdx(i)}
             className={cn(
-              "px-3 py-1 rounded-lg text-xs font-medium transition-all",
+              "px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
               providerIdx === i
                 ? "bg-brand text-white"
                 : "bg-surface-card border border-surface-border text-white/50 hover:text-white"
@@ -83,14 +100,14 @@ export default function AnimePlayer({
           </button>
         ))}
 
-        {/* Sub/Dub toggle */}
+        {/* Sub/Dub */}
         <div className="flex rounded-lg overflow-hidden border border-surface-border ml-1">
           {(["sub", "dub"] as Lang[]).map((l) => (
             <button
               key={l}
               onClick={() => setLang(l)}
               className={cn(
-                "px-3 py-1 text-xs font-medium transition-all uppercase",
+                "px-2.5 py-1 text-xs font-medium transition-all uppercase",
                 lang === l
                   ? "bg-brand text-white"
                   : "bg-surface-card text-white/50 hover:text-white"
