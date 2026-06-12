@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useWatchlistStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { SkipForward, SkipBack, Settings, Keyboard } from "lucide-react";
+import { SkipForward, Settings, Keyboard } from "lucide-react";
 
 interface AnimePlayerProps {
   animeId: number;
@@ -53,6 +53,9 @@ function saveSettings(s: { lang: Lang; providerIdx: number; autoPlay: boolean })
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
 }
 
+// Average anime episode length in seconds (24 min)
+const DEFAULT_DURATION = 24 * 60;
+
 export default function AnimePlayer({
   animeId,
   malId,
@@ -66,13 +69,14 @@ export default function AnimePlayer({
   const [loading, setLoading] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [autoPlayCountdown, setAutoPlayCountdown] = useState<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const setProgress = useWatchlistStore((s) => s.setProgress);
-  const autoPlayTimer = useRef<NodeJS.Timeout | null>(null);
-  const countdownTimer = useRef<NodeJS.Timeout | null>(null);
+  const watchStartTime = useRef<number>(Date.now());
+  const elapsedBeforePause = useRef<number>(0);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load saved settings on mount
   useEffect(() => {
@@ -89,19 +93,27 @@ export default function AnimePlayer({
 
   useEffect(() => { setLoading(true); }, [providerIdx, episode, lang]);
 
-  // Mark episode progress
+  // Track watch time and save progress periodically
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setProgress({ animeId, episode, progress: 30, duration: 1440 });
-    }, 30_000);
-    return () => clearTimeout(timer);
-  }, [animeId, episode, setProgress]);
+    watchStartTime.current = Date.now();
+    elapsedBeforePause.current = 0;
 
-  // Show toast notification
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2000);
-  }, []);
+    progressInterval.current = setInterval(() => {
+      const elapsedSeconds = (Date.now() - watchStartTime.current) / 1000;
+      // Estimate progress as elapsed real time watching (capped at duration)
+      const estimatedProgress = Math.min(elapsedSeconds, DEFAULT_DURATION);
+      setProgress({
+        animeId,
+        episode,
+        progress: estimatedProgress,
+        duration: DEFAULT_DURATION,
+      });
+    }, 10_000);
+
+    return () => {
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+  }, [animeId, episode, setProgress]);
 
   // Auto-play next episode countdown
   const startAutoPlay = useCallback(() => {
@@ -110,7 +122,7 @@ export default function AnimePlayer({
     countdownTimer.current = setInterval(() => {
       setAutoPlayCountdown((c) => {
         if (c === null || c <= 1) {
-          clearInterval(countdownTimer.current!);
+          if (countdownTimer.current) clearInterval(countdownTimer.current);
           setAutoPlayCountdown(null);
           onNext();
           return null;
@@ -125,33 +137,40 @@ export default function AnimePlayer({
     setAutoPlayCountdown(null);
   }, []);
 
+  // Mark episode as fully watched when leaving the page
+  useEffect(() => {
+    return () => {
+      const elapsedSeconds = (Date.now() - watchStartTime.current) / 1000;
+      if (elapsedSeconds > DEFAULT_DURATION * 0.7) {
+        // Watched most of it — mark as complete
+        setProgress({
+          animeId,
+          episode,
+          progress: DEFAULT_DURATION,
+          duration: DEFAULT_DURATION,
+        });
+      }
+    };
+  }, [animeId, episode, setProgress]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
+      const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
-          showToast("⏩ +5s");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "seek", offset: 5 }, "*"
-          );
+          iframeRef.current?.contentWindow?.postMessage({ type: "seek", offset: 5 }, "*");
           break;
         case "ArrowLeft":
           e.preventDefault();
-          showToast("⏪ -5s");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "seek", offset: -5 }, "*"
-          );
+          iframeRef.current?.contentWindow?.postMessage({ type: "seek", offset: -5 }, "*");
           break;
         case " ":
           e.preventDefault();
-          showToast("⏸ Pause / Play");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "togglePlay" }, "*"
-          );
+          iframeRef.current?.contentWindow?.postMessage({ type: "togglePlay" }, "*");
           break;
         case "f":
         case "F":
@@ -161,41 +180,26 @@ export default function AnimePlayer({
           } else {
             containerRef.current?.requestFullscreen();
           }
-          showToast("⛶ Fullscreen");
           break;
         case "m":
         case "M":
           e.preventDefault();
-          showToast("🔇 Mute toggle");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "toggleMute" }, "*"
-          );
-          break;
-        case "n":
-        case "N":
-          e.preventDefault();
-          if (onNext) { showToast("⏭ Next Episode"); onNext(); }
+          iframeRef.current?.contentWindow?.postMessage({ type: "toggleMute" }, "*");
           break;
         case "ArrowUp":
           e.preventDefault();
-          showToast("🔊 Volume +");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "volumeUp" }, "*"
-          );
+          iframeRef.current?.contentWindow?.postMessage({ type: "volumeUp" }, "*");
           break;
         case "ArrowDown":
           e.preventDefault();
-          showToast("🔉 Volume -");
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: "volumeDown" }, "*"
-          );
+          iframeRef.current?.contentWindow?.postMessage({ type: "volumeDown" }, "*");
           break;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onNext, showToast]);
+  }, []);
 
   const p = PROVIDERS[providerIdx];
   const src = p.url(animeId, malId, episode, lang);
@@ -238,7 +242,7 @@ export default function AnimePlayer({
 
         {/* Settings button */}
         <button
-          onClick={() => setShowSettings((p) => !p)}
+          onClick={() => setShowSettings((v) => !v)}
           className="ml-1 p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
           title="Settings"
         >
@@ -247,34 +251,23 @@ export default function AnimePlayer({
 
         {/* Shortcuts button */}
         <button
-          onClick={() => setShowShortcuts((p) => !p)}
+          onClick={() => setShowShortcuts((v) => !v)}
           className="p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
           title="Keyboard shortcuts"
         >
           <Keyboard size={13} />
         </button>
 
-        {/* Prev/Next */}
-        <div className="flex items-center gap-1 ml-auto">
-          {onNext && (
-            <>
-              <button
-                onClick={() => window.history.back()}
-                className="p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
-                title="Previous episode"
-              >
-                <SkipBack size={13} />
-              </button>
-              <button
-                onClick={onNext}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-400 transition-all"
-              >
-                <SkipForward size={13} />
-                Next
-              </button>
-            </>
-          )}
-        </div>
+        {/* Next episode */}
+        {onNext && (
+          <button
+            onClick={onNext}
+            className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-400 transition-all"
+          >
+            <SkipForward size={13} />
+            Next
+          </button>
+        )}
       </div>
 
       {/* Settings panel */}
@@ -284,7 +277,7 @@ export default function AnimePlayer({
           <div className="flex items-center justify-between">
             <span className="text-sm text-white/80">Auto-play next episode</span>
             <button
-              onClick={() => setAutoPlay((p) => !p)}
+              onClick={() => setAutoPlay((v) => !v)}
               className={cn(
                 "w-10 h-5 rounded-full transition-all relative",
                 autoPlay ? "bg-brand" : "bg-surface-border"
@@ -311,7 +304,6 @@ export default function AnimePlayer({
               ["↑ / ↓", "Volume up / down"],
               ["F", "Fullscreen"],
               ["M", "Mute"],
-              ["N", "Next episode"],
             ].map(([key, desc]) => (
               <div key={key} className="flex items-center gap-2">
                 <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-surface-border text-white/70 font-mono text-[10px]">
@@ -321,28 +313,21 @@ export default function AnimePlayer({
               </div>
             ))}
           </div>
+          <p className="text-[10px] text-white/30 mt-2">
+            Note: shortcuts work only if the active server's player supports them.
+          </p>
         </div>
       )}
 
       {/* Player iframe */}
       <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
-        {/* Toast overlay */}
-        {toast && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-black/80 text-white text-sm font-medium backdrop-blur-sm pointer-events-none">
-            {toast}
-          </div>
-        )}
-
         {/* Auto-play countdown */}
         {autoPlayCountdown !== null && (
           <div className="absolute bottom-6 right-4 z-20 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/80 backdrop-blur-sm border border-white/10">
             <div className="text-sm text-white">
               Next episode in <span className="text-brand font-bold">{autoPlayCountdown}s</span>
             </div>
-            <button
-              onClick={cancelAutoPlay}
-              className="text-xs text-white/60 hover:text-white underline"
-            >
+            <button onClick={cancelAutoPlay} className="text-xs text-white/60 hover:text-white underline">
               Cancel
             </button>
           </div>
@@ -369,10 +354,9 @@ export default function AnimePlayer({
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
             onLoad={() => {
               setLoading(false);
-              // Start auto-play countdown when episode ends (approximation: trigger after 22 min for a 24-min ep)
+              watchStartTime.current = Date.now();
               if (autoPlay && onNext) {
-                if (autoPlayTimer.current) clearTimeout(autoPlayTimer.current);
-                autoPlayTimer.current = setTimeout(startAutoPlay, 22 * 60 * 1000);
+                setTimeout(startAutoPlay, DEFAULT_DURATION * 1000 * 0.95);
               }
             }}
           />
@@ -387,7 +371,7 @@ export default function AnimePlayer({
       </div>
 
       <p className="text-xs text-white/20 mt-2 text-center">
-        Press <kbd className="px-1 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono text-[10px] text-white/40">?</kbd> or click the keyboard icon for shortcuts · Sub / Dub toggle saves automatically
+        Click the keyboard icon for shortcuts · Settings save automatically
       </p>
     </div>
   );
