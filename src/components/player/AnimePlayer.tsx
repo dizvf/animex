@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useWatchlistStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { SkipForward, Settings, Keyboard } from "lucide-react";
+import { SkipForward, Keyboard } from "lucide-react";
 
 interface AnimePlayerProps {
   animeId: number;
@@ -40,16 +40,16 @@ const PROVIDERS = [
 
 const SETTINGS_KEY = "animex-player-settings";
 
-function loadSettings(): { lang: Lang; providerIdx: number; autoPlay: boolean } {
+function loadSettings(): { lang: Lang; providerIdx: number } {
   try {
     const s = localStorage.getItem(SETTINGS_KEY);
-    return s ? JSON.parse(s) : { lang: "dub", providerIdx: 0, autoPlay: true };
+    return s ? JSON.parse(s) : { lang: "dub", providerIdx: 0 };
   } catch {
-    return { lang: "dub", providerIdx: 0, autoPlay: true };
+    return { lang: "dub", providerIdx: 0 };
   }
 }
 
-function saveSettings(s: { lang: Lang; providerIdx: number; autoPlay: boolean }) {
+function saveSettings(s: { lang: Lang; providerIdx: number }) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
 }
 
@@ -65,17 +65,12 @@ export default function AnimePlayer({
 }: AnimePlayerProps) {
   const [providerIdx, setProviderIdx] = useState(0);
   const [lang, setLang] = useState<Lang>("dub");
-  const [autoPlay, setAutoPlay] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [autoPlayCountdown, setAutoPlayCountdown] = useState<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const setProgress = useWatchlistStore((s) => s.setProgress);
   const watchStartTime = useRef<number>(Date.now());
-  const elapsedBeforePause = useRef<number>(0);
-  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load saved settings on mount
@@ -83,13 +78,12 @@ export default function AnimePlayer({
     const s = loadSettings();
     setLang(s.lang);
     setProviderIdx(s.providerIdx);
-    setAutoPlay(s.autoPlay);
   }, []);
 
   // Save settings when they change
   useEffect(() => {
-    saveSettings({ lang, providerIdx, autoPlay });
-  }, [lang, providerIdx, autoPlay]);
+    saveSettings({ lang, providerIdx });
+  }, [lang, providerIdx]);
 
   useEffect(() => { setLoading(true); }, [providerIdx, episode, lang]);
 
@@ -114,28 +108,6 @@ export default function AnimePlayer({
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
   }, [animeId, episode, setProgress]);
-
-  // Auto-play next episode countdown
-  const startAutoPlay = useCallback(() => {
-    if (!onNext || !autoPlay) return;
-    setAutoPlayCountdown(5);
-    countdownTimer.current = setInterval(() => {
-      setAutoPlayCountdown((c) => {
-        if (c === null || c <= 1) {
-          if (countdownTimer.current) clearInterval(countdownTimer.current);
-          setAutoPlayCountdown(null);
-          onNext();
-          return null;
-        }
-        return c - 1;
-      });
-    }, 1000);
-  }, [onNext, autoPlay]);
-
-  const cancelAutoPlay = useCallback(() => {
-    if (countdownTimer.current) clearInterval(countdownTimer.current);
-    setAutoPlayCountdown(null);
-  }, []);
 
   // Mark episode as fully watched when leaving the page
   useEffect(() => {
@@ -240,19 +212,10 @@ export default function AnimePlayer({
           ))}
         </div>
 
-        {/* Settings button */}
-        <button
-          onClick={() => setShowSettings((v) => !v)}
-          className="ml-1 p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
-          title="Settings"
-        >
-          <Settings size={13} />
-        </button>
-
         {/* Shortcuts button */}
         <button
           onClick={() => setShowShortcuts((v) => !v)}
-          className="p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
+          className="ml-1 p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
           title="Keyboard shortcuts"
         >
           <Keyboard size={13} />
@@ -269,28 +232,6 @@ export default function AnimePlayer({
           </button>
         )}
       </div>
-
-      {/* Settings panel */}
-      {showSettings && (
-        <div className="mb-2 p-3 rounded-xl bg-surface-card border border-surface-border">
-          <p className="text-xs font-semibold text-white/60 mb-2 uppercase tracking-wide">Player Settings</p>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-white/80">Auto-play next episode</span>
-            <button
-              onClick={() => setAutoPlay((v) => !v)}
-              className={cn(
-                "w-10 h-5 rounded-full transition-all relative",
-                autoPlay ? "bg-brand" : "bg-surface-border"
-              )}
-            >
-              <span className={cn(
-                "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all",
-                autoPlay ? "left-5" : "left-0.5"
-              )} />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Shortcuts panel */}
       {showShortcuts && (
@@ -321,17 +262,6 @@ export default function AnimePlayer({
 
       {/* Player iframe */}
       <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
-        {/* Auto-play countdown */}
-        {autoPlayCountdown !== null && (
-          <div className="absolute bottom-6 right-4 z-20 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/80 backdrop-blur-sm border border-white/10">
-            <div className="text-sm text-white">
-              Next episode in <span className="text-brand font-bold">{autoPlayCountdown}s</span>
-            </div>
-            <button onClick={cancelAutoPlay} className="text-xs text-white/60 hover:text-white underline">
-              Cancel
-            </button>
-          </div>
-        )}
 
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 pointer-events-none">
@@ -355,9 +285,6 @@ export default function AnimePlayer({
             onLoad={() => {
               setLoading(false);
               watchStartTime.current = Date.now();
-              if (autoPlay && onNext) {
-                setTimeout(startAutoPlay, DEFAULT_DURATION * 1000 * 0.95);
-              }
             }}
           />
         ) : (
