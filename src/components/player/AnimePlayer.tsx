@@ -24,12 +24,12 @@ const PROVIDERS = [
   {
     name: "Orion",
     url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
-      `https://vidnest.fun/anime/${animeId}/${ep}/${lang}`,
+      `https://player.vidplus.to/embed/anime/${animeId}/${ep}?dub=${lang === "dub"}`,
   },
   {
     name: "Pulsar",
-    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
-      malId ? `https://megaplay.buzz/stream/mal/${malId}/${ep}/${lang}` : null,
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://vidnest.fun/animepahe/${animeId}/${ep}/${lang}`,
   },
   {
     name: "Vega",
