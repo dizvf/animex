@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageSquare } from "lucide-react";
 
 export default function Comments() {
   const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!ref.current || ref.current.querySelector("script")) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !ref.current) return;
+    // Clear any previous script to avoid duplicates
+    ref.current.innerHTML = "";
 
     const script = document.createElement("script");
     script.src = "https://giscus.app/client.js";
@@ -26,7 +33,9 @@ export default function Comments() {
     script.async = true;
 
     ref.current.appendChild(script);
-  }, []);
+  }, [mounted]);
+
+  if (!mounted) return null;
 
   return (
     <div>
@@ -34,7 +43,7 @@ export default function Comments() {
         <MessageSquare size={20} className="text-brand" />
         <h2 className="text-lg font-bold text-white">Comments</h2>
       </div>
-      <div ref={ref} className="giscus-container" />
+      <div ref={ref} />
     </div>
   );
 }

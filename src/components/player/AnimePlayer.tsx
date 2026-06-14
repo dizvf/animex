@@ -24,7 +24,7 @@ const PROVIDERS = [
   {
     name: "Orion",
     url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
-      `https://player.vidplus.to/embed/anime/${animeId}/${ep}?dub=${lang === "dub"}`,
+      `https://player.vidplus.to/embed/anime/${animeId}/${ep}?dub=${lang === "dub" ? "true" : "false"}`,
   },
   {
     name: "Pulsar",
@@ -279,8 +279,7 @@ export default function AnimePlayer({
             className="w-full h-full"
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-            referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
+            referrerPolicy="no-referrer-when-downgrade"
             onLoad={() => {
               setLoading(false);
               watchStartTime.current = Date.now();
