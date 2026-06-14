@@ -17,24 +17,24 @@ type Lang = "sub" | "dub";
 
 const PROVIDERS = [
   {
-    name: "Ryu",
+    name: "Nova",
     url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
       `https://animeplay.cfd/stream/ani/${animeId}/${ep}/${lang}`,
   },
   {
-    name: "Volt",
+    name: "Orion",
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://vidnest.fun/anime/${animeId}/${ep}/${lang}`,
+  },
+  {
+    name: "Pulsar",
     url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
-      malId ? `https://animeplay.cfd/stream/mal/${malId}/${ep}/${lang}` : null,
+      malId ? `https://megaplay.buzz/stream/mal/${malId}/${ep}/${lang}` : null,
   },
   {
-    name: "Warp",
-    url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
-      `https://player.vidplus.to/embed/anime/${animeId}/${ep}`,
-  },
-  {
-    name: "Ayame",
-    url: (animeId: number, _malId: number | null, ep: number, _lang: Lang) =>
-      `https://2embed.cc/embed/anime/${animeId}/${ep}`,
+    name: "Vega",
+    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
+      `https://tryembed.us.cc/embed/anime/${animeId}/${ep}/${lang}`,
   },
 ];
 
@@ -90,7 +90,6 @@ export default function AnimePlayer({
   // Track watch time and save progress periodically
   useEffect(() => {
     watchStartTime.current = Date.now();
-    elapsedBeforePause.current = 0;
 
     progressInterval.current = setInterval(() => {
       const elapsedSeconds = (Date.now() - watchStartTime.current) / 1000;
