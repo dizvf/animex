@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useWatchlistStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { SkipForward, Keyboard } from "lucide-react";
+import { SkipForward, Keyboard, RefreshCw } from "lucide-react";
 
 interface AnimePlayerProps {
   animeId: number;
@@ -39,6 +39,8 @@ const PROVIDERS = [
 ];
 
 const SETTINGS_KEY = "animex-player-settings";
+const STALL_TIMEOUT_MS = 8000; // show retry after 8s of black screen
+const DEFAULT_DURATION = 24 * 60;
 
 function loadSettings(): { lang: Lang; providerIdx: number } {
   try {
@@ -53,9 +55,6 @@ function saveSettings(s: { lang: Lang; providerIdx: number }) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
 }
 
-// Average anime episode length in seconds (24 min)
-const DEFAULT_DURATION = 24 * 60;
-
 export default function AnimePlayer({
   animeId,
   malId,
@@ -66,9 +65,12 @@ export default function AnimePlayer({
   const [providerIdx, setProviderIdx] = useState(0);
   const [lang, setLang] = useState<Lang>("dub");
   const [loading, setLoading] = useState(true);
+  const [stalled, setStalled] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0); // increment to force remount
   const [showShortcuts, setShowShortcuts] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setProgress = useWatchlistStore((s) => s.setProgress);
   const watchStartTime = useRef<number>(Date.now());
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -80,56 +82,65 @@ export default function AnimePlayer({
     setProviderIdx(s.providerIdx);
   }, []);
 
-  // Save settings when they change
   useEffect(() => {
     saveSettings({ lang, providerIdx });
   }, [lang, providerIdx]);
 
-  useEffect(() => { setLoading(true); }, [providerIdx, episode, lang]);
+  // Reset loading state and start stall timer on any change
+  useEffect(() => {
+    setLoading(true);
+    setStalled(false);
 
-  // Track watch time and save progress periodically
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = setTimeout(() => {
+      setStalled(true);
+    }, STALL_TIMEOUT_MS);
+
+    return () => {
+      if (stallTimer.current) clearTimeout(stallTimer.current);
+    };
+  }, [providerIdx, episode, lang, iframeKey]);
+
+  // Progress tracking
   useEffect(() => {
     watchStartTime.current = Date.now();
-
     progressInterval.current = setInterval(() => {
-      const elapsedSeconds = (Date.now() - watchStartTime.current) / 1000;
-      // Estimate progress as elapsed real time watching (capped at duration)
-      const estimatedProgress = Math.min(elapsedSeconds, DEFAULT_DURATION);
-      setProgress({
-        animeId,
-        episode,
-        progress: estimatedProgress,
-        duration: DEFAULT_DURATION,
-      });
+      const elapsed = Math.min((Date.now() - watchStartTime.current) / 1000, DEFAULT_DURATION);
+      setProgress({ animeId, episode, progress: elapsed, duration: DEFAULT_DURATION });
     }, 10_000);
-
-    return () => {
-      if (progressInterval.current) clearInterval(progressInterval.current);
-    };
+    return () => { if (progressInterval.current) clearInterval(progressInterval.current); };
   }, [animeId, episode, setProgress]);
 
-  // Mark episode as fully watched when leaving the page
+  // Mark complete on unmount if watched enough
   useEffect(() => {
     return () => {
-      const elapsedSeconds = (Date.now() - watchStartTime.current) / 1000;
-      if (elapsedSeconds > DEFAULT_DURATION * 0.7) {
-        // Watched most of it — mark as complete
-        setProgress({
-          animeId,
-          episode,
-          progress: DEFAULT_DURATION,
-          duration: DEFAULT_DURATION,
-        });
+      const elapsed = (Date.now() - watchStartTime.current) / 1000;
+      if (elapsed > DEFAULT_DURATION * 0.7) {
+        setProgress({ animeId, episode, progress: DEFAULT_DURATION, duration: DEFAULT_DURATION });
       }
     };
   }, [animeId, episode, setProgress]);
+
+  const handleLoad = () => {
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    setLoading(false);
+    setStalled(false);
+    watchStartTime.current = Date.now();
+  };
+
+  const retry = () => {
+    setIframeKey((k) => k + 1);
+  };
+
+  const nextProvider = () => {
+    setProviderIdx((i) => (i + 1) % PROVIDERS.length);
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
@@ -143,17 +154,12 @@ export default function AnimePlayer({
           e.preventDefault();
           iframeRef.current?.contentWindow?.postMessage({ type: "togglePlay" }, "*");
           break;
-        case "f":
-        case "F":
+        case "f": case "F":
           e.preventDefault();
-          if (document.fullscreenElement) {
-            document.exitFullscreen();
-          } else {
-            containerRef.current?.requestFullscreen();
-          }
+          if (document.fullscreenElement) document.exitFullscreen();
+          else containerRef.current?.requestFullscreen();
           break;
-        case "m":
-        case "M":
+        case "m": case "M":
           e.preventDefault();
           iframeRef.current?.contentWindow?.postMessage({ type: "toggleMute" }, "*");
           break;
@@ -167,7 +173,6 @@ export default function AnimePlayer({
           break;
       }
     };
-
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
@@ -195,7 +200,6 @@ export default function AnimePlayer({
           </button>
         ))}
 
-        {/* Sub/Dub */}
         <div className="flex rounded-lg overflow-hidden border border-surface-border ml-1">
           {(["sub", "dub"] as Lang[]).map((l) => (
             <button
@@ -211,7 +215,6 @@ export default function AnimePlayer({
           ))}
         </div>
 
-        {/* Shortcuts button */}
         <button
           onClick={() => setShowShortcuts((v) => !v)}
           className="ml-1 p-1.5 rounded-lg bg-surface-card border border-surface-border text-white/50 hover:text-white transition-colors"
@@ -220,7 +223,6 @@ export default function AnimePlayer({
           <Keyboard size={13} />
         </button>
 
-        {/* Next episode */}
         {onNext && (
           <button
             onClick={onNext}
@@ -246,23 +248,18 @@ export default function AnimePlayer({
               ["M", "Mute"],
             ].map(([key, desc]) => (
               <div key={key} className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-surface-border text-white/70 font-mono text-[10px]">
-                  {key}
-                </kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-surface-border text-white/70 font-mono text-[10px]">{key}</kbd>
                 <span className="text-white/50">{desc}</span>
               </div>
             ))}
           </div>
-          <p className="text-[10px] text-white/30 mt-2">
-            Note: shortcuts work only if the active server's player supports them.
-          </p>
         </div>
       )}
 
-      {/* Player iframe */}
+      {/* Player */}
       <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-surface-border">
-
-        {loading && (
+        {/* Loading spinner */}
+        {loading && !stalled && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface z-10 pointer-events-none">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -271,19 +268,40 @@ export default function AnimePlayer({
           </div>
         )}
 
+        {/* Stalled — show retry */}
+        {stalled && (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface z-10">
+            <div className="text-center space-y-3">
+              <p className="text-white/50 text-sm">{p.name} took too long to load</p>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={retry}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-400 transition-all"
+                >
+                  <RefreshCw size={14} />
+                  Retry
+                </button>
+                <button
+                  onClick={nextProvider}
+                  className="px-4 py-2 rounded-lg bg-surface-card border border-surface-border text-white/70 text-sm hover:text-white transition-all"
+                >
+                  Try {PROVIDERS[(providerIdx + 1) % PROVIDERS.length].name}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {src ? (
           <iframe
             ref={iframeRef}
-            key={`${providerIdx}-${episode}-${lang}`}
+            key={`${providerIdx}-${episode}-${lang}-${iframeKey}`}
             src={src}
             className="w-full h-full"
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
             referrerPolicy="no-referrer-when-downgrade"
-            onLoad={() => {
-              setLoading(false);
-              watchStartTime.current = Date.now();
-            }}
+            onLoad={handleLoad}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
