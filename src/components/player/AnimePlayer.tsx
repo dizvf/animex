@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useWatchlistStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { SkipForward, Keyboard, RefreshCw } from "lucide-react";
+import { SkipForward, Keyboard, RefreshCw, Download } from "lucide-react";
 
 interface AnimePlayerProps {
   animeId: number;
@@ -23,13 +23,13 @@ const PROVIDERS = [
   },
   {
     name: "Orion",
-    url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
-      `https://player.vidplus.to/embed/anime/${animeId}/${ep}?dub=${lang === "dub" ? "true" : "false"}`,
+    url: (_animeId: number, malId: number | null, ep: number, lang: Lang) =>
+      malId ? `https://megaplay.buzz/stream/mal/${malId}/${ep}/${lang}` : null,
   },
   {
     name: "Pulsar",
     url: (animeId: number, _malId: number | null, ep: number, lang: Lang) =>
-      `https://vidnest.fun/animepahe/${animeId}/${ep}/${lang}`,
+      `https://vidnest.fun/anime/${animeId}/${ep}/${lang}`,
   },
   {
     name: "Vega",
@@ -232,6 +232,22 @@ export default function AnimePlayer({
             Next
           </button>
         )}
+
+        {/* Download button — links to animetosho search */}
+        <a
+          href={`https://animetosho.org/search?q=${encodeURIComponent(`Episode ${episode}`)}&aids=${malId ?? ""}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+            "bg-surface-card border border-surface-border text-white/50 hover:text-white",
+            !onNext && "ml-auto"
+          )}
+          title="Download this episode"
+        >
+          <Download size={13} />
+          Download
+        </a>
       </div>
 
       {/* Shortcuts panel */}
